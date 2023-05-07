@@ -24,7 +24,6 @@ import org.springframework.core.task.TaskExecutor;
 @Configuration
 @EnableBatchProcessing
 @AllArgsConstructor
-
 public class SpringBatchConfig {
 
     private JobBuilderFactory jobBuilderFactory;
@@ -37,7 +36,7 @@ public class SpringBatchConfig {
     @Bean
     public FlatFileItemReader<Customer> reader(){
         FlatFileItemReader<Customer> itemReader = new FlatFileItemReader<>();
-        itemReader.setResource(new FileSystemResource("src/main/resources/orgs.csv"));
+        itemReader.setResource(new FileSystemResource("src/main/resources/customers.csv"));
         itemReader.setName("csvReader");
         itemReader.setLinesToSkip(1);
         itemReader.setLineMapper(lineMapper());
@@ -48,15 +47,13 @@ public class SpringBatchConfig {
 
     private LineMapper<Customer> lineMapper(){
         DefaultLineMapper<Customer> lineMapper= new DefaultLineMapper<>();
-
-        DelimitedLineTokenizer delimitedLineTokenizer = new DelimitedLineTokenizer();
-        delimitedLineTokenizer.setDelimiter(",");
-        delimitedLineTokenizer.setStrict(false);
-        delimitedLineTokenizer.setNames("id","firstName","lastName","email","gender","contactNo","country","dob");
+        DelimitedLineTokenizer lineTokenizer  = new DelimitedLineTokenizer();
+        lineTokenizer.setDelimiter(",");
+        lineTokenizer.setStrict(false);
+        lineTokenizer.setNames("id","firstName","lastName","email","gender","contactNo","country","dob");
         BeanWrapperFieldSetMapper<Customer> fieldSetMapper= new BeanWrapperFieldSetMapper<>();
         fieldSetMapper.setTargetType(Customer.class);
-
-        lineMapper.setLineTokenizer(delimitedLineTokenizer);
+        lineMapper.setLineTokenizer(lineTokenizer);
         lineMapper.setFieldSetMapper(fieldSetMapper);
         return lineMapper;
     }
@@ -74,7 +71,7 @@ public class SpringBatchConfig {
     return writer;
 }
 
-@Bean
+    @Bean
     public Step step1(){
         return stepBuilderFactory.get("csv-step").<Customer, Customer>chunk(10)
                 .reader(reader())
@@ -90,20 +87,11 @@ public class SpringBatchConfig {
                 .flow(step1())
                 .end()
                 .build();
-
 }
-
-
-@Bean
-public TaskExecutor taskExecutor(){
-    SimpleAsyncTaskExecutor asyncTaskExecutor = new SimpleAsyncTaskExecutor();
-    asyncTaskExecutor.setConcurrencyLimit(10);
-    return asyncTaskExecutor;
-}
-
-
-
-
-
-
+    @Bean
+    public TaskExecutor taskExecutor(){
+        SimpleAsyncTaskExecutor asyncTaskExecutor = new SimpleAsyncTaskExecutor();
+        asyncTaskExecutor.setConcurrencyLimit(10);
+        return asyncTaskExecutor;
     }
+}
