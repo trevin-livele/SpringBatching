@@ -36,8 +36,9 @@ public class SpringBatchConfig {
     @Bean
     public FlatFileItemReader<Customer> reader(){
         FlatFileItemReader<Customer> itemReader = new FlatFileItemReader<>();
-        itemReader.setResource(new FileSystemResource("src/main/resources/customers.csv"));
+        itemReader.setResource(new FileSystemResource("spring-batching/src/main/java/com/trevin/spring/batching/customers.csv"));
         itemReader.setName("csvReader");
+        itemReader.setStrict(false);
         itemReader.setLinesToSkip(1);
         itemReader.setLineMapper(lineMapper());
         return itemReader;
