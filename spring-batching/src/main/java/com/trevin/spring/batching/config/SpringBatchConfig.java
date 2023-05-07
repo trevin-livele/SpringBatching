@@ -2,14 +2,15 @@ package com.trevin.spring.batching.config;
 
 
 import com.trevin.spring.batching.entity.Customer;
-import com.trevin.spring.batching.repository.CustomerRepository;
+import com.trevin.spring.batching.partition.ColumnRangePartitioner;
 import lombok.AllArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.item.data.RepositoryItemWriter;
+import org.springframework.batch.core.partition.PartitionHandler;
+import org.springframework.batch.core.partition.support.TaskExecutorPartitionHandler;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
@@ -18,8 +19,8 @@ import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Configuration
 @EnableBatchProcessing
@@ -30,8 +31,7 @@ public class SpringBatchConfig {
 
     private StepBuilderFactory stepBuilderFactory;
 
-    private CustomerRepository customerRepository;
-
+    private CustomerWriter customerWriter;
 
     @Bean
     public FlatFileItemReader<Customer> reader(){
@@ -40,7 +40,6 @@ public class SpringBatchConfig {
         itemReader.setName("csvReader");
         itemReader.setLinesToSkip(1);
         itemReader.setLineMapper(lineMapper());
-
         return itemReader;
     }
 
@@ -64,34 +63,48 @@ public class SpringBatchConfig {
     }
 
     @Bean
-    public RepositoryItemWriter<Customer> writer(){
-    RepositoryItemWriter<Customer> writer= new RepositoryItemWriter<>();
-    writer.setRepository(customerRepository);
-    writer.setMethodName("save");
-    return writer;
-}
+    public ColumnRangePartitioner partitioner(){
+        return new ColumnRangePartitioner();
+    }
 
     @Bean
-    public Step step1(){
-        return stepBuilderFactory.get("csv-step").<Customer, Customer>chunk(10)
+    public PartitionHandler partitionHandler(){
+        TaskExecutorPartitionHandler taskExecutorPartitionHandler= new TaskExecutorPartitionHandler();
+        taskExecutorPartitionHandler.setGridSize(2);
+        taskExecutorPartitionHandler.setTaskExecutor(taskExecutor());
+        taskExecutorPartitionHandler.setStep(slaveStep());
+        return taskExecutorPartitionHandler;
+    }
+
+    @Bean
+    public Step slaveStep(){
+        return stepBuilderFactory.get("slaveStep").<Customer, Customer>chunk(500)
                 .reader(reader())
                 .processor(processor())
-                .writer(writer())
-                .taskExecutor(taskExecutor())
+                .writer(customerWriter)
                 .build();
 }
+    @Bean
+    public Step masterStep(){
+        return stepBuilderFactory.get("masterStep").
+                partitioner(slaveStep().getName(), partitioner())
+                .partitionHandler(partitionHandler())
+                .build();
+    }
 
     @Bean
     public Job runJob(){
         return jobBuilderFactory.get("importCustomers")
-                .flow(step1())
+                .flow(masterStep())
                 .end()
                 .build();
 }
     @Bean
     public TaskExecutor taskExecutor(){
-        SimpleAsyncTaskExecutor asyncTaskExecutor = new SimpleAsyncTaskExecutor();
-        asyncTaskExecutor.setConcurrencyLimit(10);
-        return asyncTaskExecutor;
+        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+        taskExecutor.setMaxPoolSize(4);
+        taskExecutor.setCorePoolSize(4);
+        taskExecutor.setQueueCapacity(4);
+        return taskExecutor;
     }
 }
