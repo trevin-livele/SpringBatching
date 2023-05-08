@@ -2,15 +2,18 @@ package com.trevin.spring.batching.config;
 
 
 import com.trevin.spring.batching.entity.Customer;
+import com.trevin.spring.batching.listener.StepSkipListener;
 import com.trevin.spring.batching.partition.ColumnRangePartitioner;
 import lombok.AllArgsConstructor;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.SkipListener;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.partition.PartitionHandler;
 import org.springframework.batch.core.partition.support.TaskExecutorPartitionHandler;
+import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
@@ -83,6 +86,11 @@ public class SpringBatchConfig {
                 .reader(reader())
                 .processor(processor())
                 .writer(customerWriter)
+                .faultTolerant()
+//                .skipLimit(100)
+//                .skip(Exception.class)
+                .listener(skipListener())
+                .skipPolicy(skipPolicy())
                 .build();
 }
     @Bean
@@ -92,13 +100,22 @@ public class SpringBatchConfig {
                 .partitionHandler(partitionHandler())
                 .build();
     }
-
     @Bean
     public Job runJob(){
         return jobBuilderFactory.get("importCustomers")
                 .flow(masterStep())
                 .end()
                 .build();
+}
+@Bean
+public SkipPolicy skipPolicy(){
+        return new ExceptionSkipPolicy();
+}
+
+
+@Bean
+public SkipListener skipListener(){
+        return new StepSkipListener();
 }
     @Bean
     public TaskExecutor taskExecutor(){
