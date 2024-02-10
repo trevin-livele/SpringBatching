@@ -14,7 +14,6 @@ import javax.persistence.Table;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-
 public class Customer {
 
     @Id
